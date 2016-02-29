@@ -4,4 +4,8 @@ a
 a
 dev
 master
-a
+<<<<<<< HEAD
+c
+=======
+c
+>>>>>>> dev
