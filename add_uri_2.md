@@ -1,0 +1,68 @@
+@startuml
+participant down_task
+participant net_io
+participant connection
+participant file_ma
+participant block
+participant cache_controll
+participant 事件循环
+participant 下载服务器
+
+down_task->>net_io: async_get_file_info()
+net_io->connection: sniff(this,parms)
+Note over connection:  x = new connection(net_io, parms);\nx->sniff_mode = true;
+connection->connection: start()
+Note over connection: connect_to_server
+connection->>事件循环: async_read(this)
+事件循环-->connection:
+Note over connection: send_request
+connection-->>下载服务器: http Get
+Note over connection: would_pause = false
+connection-->connection:
+connection-->net_io:
+net_io-->down_task: async_get_file_info() 返回
+下载服务器-->>事件循环: http Response
+事件循环->connection: complete_callback(data)
+connection->net_io: submit_recv(nRecv)
+net_io-->connection:
+connection->connection:parse_header
+Note over connection: 解析头部,获取其中的长度和文件名\n并\n填充parms中的字段
+connection->net_io: notify(this, connection_evcode::sniff)
+net_io->down_task: notify(this,down_task_evcode::get_file_info)
+down_task->file_ma: init()
+Note over file_ma: 从进度文件读取进度\n或\n依parms建新文件并预分配空间
+file_ma->block: new block() *N
+block-->file_ma:
+Note over file_ma: 装进 list<block *> block_list
+file_ma-->down_task: block_list
+down_task->cache_controll: check_in(file_ma)
+cache_controll-->down_task:
+down_task->net_io: init(block_list)
+Note over net_io: alloc_list = block_list
+Note over net_io: 用q值法为文件块分配线程数目
+Note over net_io: 文件块按照对应的线程数目划分小块\n
+net_io->block: divide()
+block-->net_io: list<block *>
+net_io->connection: new connection(this,parms,block) *N
+connection-->net_io:
+Note over net_io: 记录<connection*,block*>的映射connection_map
+Note over net_io: 将划分前的块从alloc_list中删去
+net_io-->down_task:
+down_task->down_task: start()
+down_task->net_io: start()
+Note over net_io: for x in connection_map
+net_io->connection: x->start()
+Note over connection: connect_to_server
+connection->>事件循环: async_read(this)
+事件循环-->connection:
+Note over connection: send_request
+connection-->>下载服务器: http Get
+Note over connection: would_pause = false
+connection-->net_io:
+net_io-->down_task:
+down_task-->down_task:
+down_task-->net_io:
+net_io-->connection:
+connection-->connection:
+connection-->事件循环:
+@enduml
