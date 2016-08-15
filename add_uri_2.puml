@@ -65,4 +65,33 @@ down_task-->net_io:
 net_io-->connection:
 connection-->connection:
 connection-->事件循环:
+
+下载服务器-->事件循环: http Response
+事件循环->connection: complete_callback(data)
+Note over connection: 剥去http头部
+connection->connection: data_callback(data)
+connection->block: fill(data)
+Note over block: 把数据缓存下来\n移动recv_ptr\nlen(data)累加到file_ma的cache_size上
+block->cache_controll: increase_cached_size(len(data))
+Note over cache_controll: 累加到total_cache_size
+Note over cache_controll: 如果total_cache_size累加后超过max_cache_size
+cache_controll->cache_controll: schedule()
+Note over cache_controll: notify drain线程
+cache_controll-->cache_controll:
+cache_controll-->block: 
+block-->connection:
+connection-->connection: 
+connection-->事件循环: 
+Note over cache_controll: drain线程被唤醒
+Note over cache_controll: 选取cache_set中cachesize最大的file_ma
+cache_controll->file_ma: do_write_back()
+Note over file_ma: for x in block_set:
+file_ma->block: drain_all()
+Note over block: 清空cache_list\n回写到硬盘
+NOte over block: file_ma的cache_size减去drain_len
+block->cache_controll: decrease_cached_size(drain_len)
+cache_controll-->block:
+block-->file_ma: 
+file_ma-->cache_controll:
+Note over cache_controll: 如果total_cache_size 还是大于 max_cache_size\n重复上一步\n否则wait
 @enduml
